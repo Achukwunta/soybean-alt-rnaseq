@@ -1,0 +1,28 @@
+# config/config.yml
+
+samples:
+  - Alternaria_T7_1
+  - Alternaria_T7_2
+  - Alternaria_T7_3
+  - Alternaria_T7_4
+  - Control_T7_1
+  - Control_T7_2
+  - Control_T7_3
+  - Control_T7_4
+
+# Reference Genomes and Annotations
+references:
+  glygenome: "resources/genomes/GCF_000004515.6_Glycine_max_v4.0_genomic.fna"
+  altgenome: "resources/genomes/GCF_001642055.1_Altal1_genomic.fna"
+  glyannotation: "resources/annotations/genomic_Gmax.gtf"
+  altannotation: "resources/annotations/genomic_Aalt.gtf"
+
+# Parameters for key tools
+params:
+  trimmomatic: "ILLUMINACLIP:resources/adapters/NexteraPE-PE.fa:2:30:10:2:True LEADING:3 TRAILING:3 SLIDINGWINDOW:5:18 MINLEN:30"
+  hisat2_strandedness: "RF" # For reverse-stranded libraries
+  featurecounts_strandedness: "2"
+
+# Design matrix for Differential Expression
+design:
+  condition: [Alternaria_T7_1, Alternaria_T7_2, Alternaria_T7_3, Alternaria_T7_4, Control_T7_1, Control_T7_2, Control_T7_3, Control_T7_4]

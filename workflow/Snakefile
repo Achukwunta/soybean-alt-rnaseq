@@ -1,0 +1,200 @@
+#Snakefile
+
+# Load configuration variables from the config file
+configfile: "config/config.yml"
+
+# Define a list of all our samples from the config
+SAMPLES = config["samples"]
+
+# --- Rule 1: Run FastQC on raw reads ---
+rule fastqc_raw:
+    input:
+        # Gets all FASTQ files for all samples
+        expand("data/raw/{sample}_{read}.fastq.gz", sample=SAMPLES, read=["R1", "R2"])
+    output:
+        directory("results/fastqc_raw")
+    log:
+        "logs/fastqc_raw.log"
+    shell:
+        "fastqc -t {threads} data/raw/*.fastq.gz -o results/fastqc_raw > {log} 2>&1"
+
+# --- Rule 2: Aggregate raw FastQC reports with MultiQC ---
+rule multiqc_raw:
+    input:
+        "results/fastqc_raw"
+    output:
+        "results/multiqc_raw/multiqc_report.html"
+    log:
+        "logs/multiqc_raw.log"
+    shell:
+        "multiqc results/fastqc_raw -o results/multiqc_raw > {log} 2>&1"
+
+# --- Rule 3: Trim reads with Trimmomatic ---
+rule trimmomatic:
+    input:
+        r1 = "data/raw/{sample}_R1.fastq.gz",
+        r2 = "data/raw/{sample}_R2.fastq.gz"
+    output:
+        r1_paired = "results/trimmed/paired/{sample}.trimmed.paired.R1.fastq.gz",
+        r1_unpaired = "results/trimmed/unpaired/{sample}.trimmed.unpaired.R1.fastq.gz",
+        r2_paired = "results/trimmed/paired/{sample}.trimmed.paired.R2.fastq.gz",
+        r2_unpaired = "results/trimmed/unpaired/{sample}.trimmed.unpaired.R2.fastq.gz"
+    log:
+        "logs/trimmomatic/{sample}.log"
+    params:
+        adapters = config["params"]["trimmomatic"]  # Get parameters from config
+    threads: 2
+    shell:
+        """
+        trimmomatic PE -threads {threads} \
+        {input.r1} {input.r2} \
+        {output.r1_paired} {output.r1_unpaired} \
+        {output.r2_paired} {output.r2_unpaired} \
+        {params.adapters} \
+        >> {log} 2>&1
+        """
+
+# --- Rule 4: Run FastQC on trimmed reads ---
+rule fastqc_trimmed:
+    input:
+        # Get all trimmed paired and unpaired files
+        expand("results/trimmed/{dir}/{sample}.trimmed.{type}.{read}.fastq.gz", 
+               dir=["paired", "unpaired"], 
+               sample=SAMPLES, 
+               type=["paired", "unpaired"],
+               read=["R1", "R2"])
+    output:
+        directory("results/fastqc_trimmed")
+    log:
+        "logs/fastqc_trimmed.log"
+    shell:
+        "fastqc -t {threads} results/trimmed/*/*.fastq.gz -o results/fastqc_trimmed > {log} 2>&1"
+
+# --- Rule 5: Build HISAT2 index ---
+rule hisat2_index:
+    input:
+        config["references"]["glygenome"]  # Path to reference genome from config
+    output:
+        # HISAT2 creates multiple index files
+        index = multiext("resources/genomes/GCF_000004515.6_Glycine_max_v4.0_genomic", ".1.ht2", ".2.ht2", ".3.ht2", 
+                        ".4.ht2", ".5.ht2", ".6.ht2", ".7.ht2", ".8.ht2")
+    log:
+        "logs/hisat2_index.log"
+    threads: 2
+    shell:
+        "hisat2-build -p {threads} -f {input} resources/genomes/GCF_000004515.6_Glycine_max_v4.0_genomic > {log} 2>&1"
+
+# --- Rule 6: Align PAIRED reads with HISAT2 ---
+rule hisat2_align_paired:
+    input:
+        index = "resources/genomes/Glycine_max_v2.1.1.ht2",  # Check if index exists
+        r1 = "results/trimmed/paired/{sample}.trimmed.paired.R1.fastq.gz",
+        r2 = "results/trimmed/paired/{sample}.trimmed.paired.R2.fastq.gz"
+    output:
+        sam = "results/aligned/paired/{sample}.sam",
+        log = "results/aligned/paired/{sample}.hisat2_paired.log"
+    log:
+        "logs/hisat2/paired/{sample}.log"
+    threads: 2
+    shell:
+        """
+        hisat2 -p {threads} \
+        -x resources/genomes/Glycine_max_v2.1 \
+        -1 {input.r1} \
+        -2 {input.r2} \
+        -S {output.sam} \
+        2> {output.log}
+        """
+
+# --- Rule 7: Convert SAM to sorted BAM (paired) ---
+rule sam_to_bam_paired:
+    input:
+        "results/aligned/paired/{sample}.sam"
+    output:
+        "results/aligned/paired/{sample}.sorted.bam"
+    log:
+        "logs/samtools/paired/{sample}.log"
+    shell:
+        "samtools view -bS {input} | samtools sort -o {output} - >> {log} 2>&1"
+
+# --- Rule 8: Align UNPAIRED reads with HISAT2 ---
+rule hisat2_align_unpaired:
+    input:
+        index = "resources/genomes/Glycine_max_v2.1.1.ht2",
+        r1 = "results/trimmed/unpaired/{sample}.trimmed.unpaired.R1.fastq.gz",
+        r2 = "results/trimmed/unpaired/{sample}.trimmed.unpaired.R2.fastq.gz"
+    output:
+        sam = "results/aligned/unpaired/{sample}.sam",
+        log = "results/aligned/unpaired/{sample}.hisat2_unpaired.log"
+    log:
+        "logs/hisat2/unpaired/{sample}.log"
+    threads: 2
+    shell:
+        """
+        hisat2 -p {threads} \
+        -x resources/genomes/GCF_000004515.6_Glycine_max_v4.0_genomic \
+        -U {input.r1},{input.r2} \
+        -S {output.sam} \
+        2> {output.log}
+        """
+
+# --- Rule 9: Convert SAM to sorted BAM (unpaired) ---
+rule sam_to_bam_unpaired:
+    input:
+        "results/aligned/unpaired/{sample}.sam"
+    output:
+        "results/aligned/unpaired/{sample}.sorted.bam"
+    log:
+        "logs/samtools/unpaired/{sample}.log"
+    shell:
+        "samtools view -bS {input} | samtools sort -o {output} - >> {log} 2>&1"
+
+# --- Rule 10: Run MultiQC on alignment reports ---
+rule multiqc_alignment:
+    input:
+        expand(["results/aligned/paired/{sample}.hisat2_paired.log", 
+                "results/aligned/unpaired/{sample}.hisat2_unpaired.log"], 
+               sample=SAMPLES)
+    output:
+        "results/multiqc_alignment/multiqc_report.html"
+    log:
+        "logs/multiqc_alignment.log"
+    shell:
+        "multiqc results/aligned/ -o results/multiqc_alignment > {log} 2>&1"
+
+# --- Rule 11: Quantify PAIRED reads with featureCounts ---
+rule featurecounts_paired:
+    input:
+        bams = expand("results/aligned/paired/{sample}.sorted.bam", sample=SAMPLES),
+        annotation = config["references"]["glyannotation"]
+    output:
+        counts = "results/counts/counts_paired.txt",
+        summary = "results/counts/counts_paired.txt.summary"
+    log:
+        "logs/featurecounts_paired.log"
+    threads: 8
+    shell:
+        "featureCounts -p -T {threads} -t exon -g gene_id -a {input.annotation} -o {output.counts} {input.bams} > {log} 2>&1"
+
+# --- Rule 12: Quantify UNPAIRED reads with featureCounts ---
+rule featurecounts_unpaired:
+    input:
+        bams = expand("results/aligned/unpaired/{sample}.sorted.bam", sample=SAMPLES),
+        annotation = config["references"]["glyannotation"]
+    output:
+        counts = "results/counts/counts_unpaired.txt",
+        summary = "results/counts/counts_unpaired.txt.summary"
+    log:
+        "logs/featurecounts_unpaired.log"
+    threads: 8
+    shell:
+        "featureCounts -T {threads} -t exon -g gene_id -a {input.annotation} -o {output.counts} {input.bams} > {log} 2>&1"
+
+# --- Default Target Rule ---
+# This tells Snakemake what to build when you just run "snakemake"
+rule all:
+    input:
+        "results/multiqc_raw/multiqc_report.html",
+        "results/multiqc_alignment/multiqc_report.html", 
+        "results/counts/counts_paired.txt",
+        "results/counts/counts_unpaired.txt"

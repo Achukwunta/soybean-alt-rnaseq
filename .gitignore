@@ -1,0 +1,15 @@
+#.gitignore
+
+# Ignore large data files and temporary files
+data/raw/
+resources/genomes/
+resources/annotations/
+results/
+logs/
+.snakemake/
+__pycache__/
+*.log
+*.bam
+*.sam
+*.fastq
+*.fastq.gz
