@@ -188,3 +188,5 @@ featureCounts -t exon -g gene_id -a ref_genome_sb/gmax_gene_v6.1.gtf\
 echo "FeatureCounts completed successfully!!"
 echo "reads ready for downstream analysis!!!"
 
+duration=$SECONDS
+echo "$(($duration / 60)) minutes and $(($duration % 60)) seconds elapsed."
