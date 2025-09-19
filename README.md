@@ -55,7 +55,9 @@ Reference genomes and annotations from Ensembl must be downloaded and placed in 
 
 ## 🚀 Running the Pipeline
 The pipeline is managed with Snakemake. Run the full analysis with:
+```bash
 snakemake --cores all --use-conda
+```
 
 
 ## 🔧 Configuration
@@ -76,6 +78,7 @@ references:
   glygenome: "resources/genomes/Gmax_880_v6.0.fa"
   glyannotation: "resources/annotations/Gmax_880_Wm82.a6.v1.gene.gff3"
 
+```
 
 ## 📊 Data Sources
 - Raw Reads: Generated in-house (Brandon University, Cassone Lab).
@@ -101,4 +104,34 @@ Chukwunta A., & Cassone B. (2025). *Dual RNA-seq analysis reveals metabolic repr
 
 ## 🤝 Contributing & Contact
 For questions, suggestions, or collaboration, please contact Augustine Chukwunta or open an issue on this repository.
+
 Thank you and Happy research
+
+
+## 🔧 Configuration
+
+Project-specific variables are set in `config/config.yaml`. Below is an example configuration:
+
+```yaml
+samples:
+  - Control_T14_1        # Sample name for control, paired-end or single-end should be clarified
+  - Control_T14_2        # Sample name for control, paired-end or single-end should be clarified
+  - Alternaria_T14_1      # Sample name for Alternaria treatment, paired-end or single-end should be clarified
+  - Alternaria_T14_2      # Sample name for Alternaria treatment, paired-end or single-end should be clarified
+
+params:
+  trimmomatic: "ILLUMINACLIP:resources/adapters/NexteraPE-PE.fa:2:30:10:2:True LEADING:3 TRAILING:3 SLIDINGWINDOW:5:18 MINLEN:30"
+  # Trimmomatic parameters for quality control:
+  # - ILLUMINACLIP: Adapter trimming using NexteraPE adapters
+  # - LEADING: Remove low-quality bases from the start
+  # - TRAILING: Remove low-quality bases from the end
+  # - SLIDINGWINDOW: Apply a sliding window to trim based on average quality score
+  # - MINLEN: Trim reads below this length
+  
+references:
+  glygenome: "resources/genomes/Gmax_880_v6.0.fa"
+  glyannotation: "resources/annotations/Gmax_880_Wm82.a6.v1.gene.gff3"
+  # Reference genome and annotation used for alignment and downstream analysis.
+  # These files should be placed in the resources/genomes/ and resources/annotations/ directories, respectively.
+  # You can download them from Phytozome or Ensembl (links provided in the documentation).
+
