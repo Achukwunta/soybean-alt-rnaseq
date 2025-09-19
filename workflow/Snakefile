@@ -76,13 +76,13 @@ rule hisat2_index:
         config["references"]["glygenome"]  # Path to reference genome from config
     output:
         # HISAT2 creates multiple index files
-        index = multiext("resources/genomes/GCF_000004515.6_Glycine_max_v4.0_genomic", ".1.ht2", ".2.ht2", ".3.ht2", 
+        index = multiext("resources/genomes/Gmax_880_v6.0", ".1.ht2", ".2.ht2", ".3.ht2", 
                         ".4.ht2", ".5.ht2", ".6.ht2", ".7.ht2", ".8.ht2")
     log:
         "logs/hisat2_index.log"
     threads: 2
     shell:
-        "hisat2-build -p {threads} -f {input} resources/genomes/GCF_000004515.6_Glycine_max_v4.0_genomic > {log} 2>&1"
+        "hisat2-build -p {threads} -f {input} resources/genomes/Gmax_880_v6.0.fa > {log} 2>&1"
 
 # --- Rule 6: Align PAIRED reads with HISAT2 ---
 rule hisat2_align_paired:
@@ -132,7 +132,7 @@ rule hisat2_align_unpaired:
     shell:
         """
         hisat2 -p {threads} \
-        -x resources/genomes/GCF_000004515.6_Glycine_max_v4.0_genomic \
+        -x resources/genomes/Gmax_880_v6.0.fa \
         -U {input.r1},{input.r2} \
         -S {output.sam} \
         2> {output.log}

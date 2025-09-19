@@ -1,23 +1,50 @@
 #!/bin/bash
 
+: '
+This workflow is used to generate read counts for differential gene expression.
+Control samples: healthy soybean with 4 replications
+Treatment samples: soybean infected with alternaria with 4 replications
+
+Step 1: Quality check for raw reads (FastQC, MultiQC)
+Step 2: Trim off bad quality reads and adapter sequences (Trimmomatic)
+Step 3: Map reads to the reference genome (HISAT2)
+Step 4: Sort the bam files (Samtools)
+Step 5: Generate quantification metrics (featureCounts)
+
+'
+
+# Set duration for running the script
 SECONDS=0
-# change working directory
-cd /mnt/e/RNA_Seq
+
+# Change the currect directory to a suitable working directory
+cd /mnt/e/glycine_max
+
+# create directories
+mkdir -p raw_reads/fastq_report
+mkdir -p raw_reads/multiqc_report
+
+# Step 1: Quality check on raw reads
 
 # Run fastqc for quality check on raw reads
 fastqc raw_reads/*.fastq.gz -o raw_reads/fastq_report
-# Aggregate fastqc raw files using multiqc
-conda run -n multiqc_rna multiqc raw_reads/fastq_report/*_fastqc.zip -o raw_reads/multiqc_report
+# Aggregate fastqc raw files using multiqc to generate a single report for all the reads
+multiqc -d -s raw_reads/fastq_report/*_fastqc.zip -o raw_reads/multiqc_report
 
+mkdir -p trimmed_reads/fastq_report
+mkdir -p trimmed_reads/multiqc_report
+mkdir -p trimmed_reads/paired
+mkdir -p trimmed_reads/unpaired
 
 raw_reads_dir="raw_reads/"
 paired_trimmed_reads="trimmed_reads/paired/"
 unpaired_trimmed_reads="trimmed_reads/unpaired/"
-threads=2
+threads=16
 
-# Trimmomatic: Trim poor quality reads
+# Step 2: Trim off bad quality reads and adapter sequences
+
+# Trimmomatic: Trim poor quality reads and adapter sequence
 for R1_read in ${raw_reads_dir}*R1.fastq.gz; do
-    # Get corresponding R2 file
+    # Get corresponding R2 file#
     base_trim=$(basename "${R1_read%_R1.fastq.gz}")
     R2_read="${raw_reads_dir}${base_trim}_R2.fastq.gz"
 
@@ -39,42 +66,46 @@ done
 
 echo "Trimmomatic finished running!"
 
-
-# Run fastqc for trimmed reads
+# Run quality on trimmed-reads using FastQC to ensure you're working with good quality reads
 fastqc trimmed_reads/paired/*.fastq.gz -o trimmed_reads/fastq_report
 fastqc trimmed_reads/unpaired/*.fastq.gz -o trimmed_reads/fastq_report
 
 
-# Aggregate trimmed reads using multiqc
-conda run -n multiqc_rna multiqc -d -s trimmed_reads/fastq_report/*_fastqc.zip -o trimmed_reads/multiqc_report
+# Aggregate trimmed reads using multiqc to generate a single report for read quality
+multiqc -d -s trimmed_reads/fastq_report/*_fastqc.zip -o trimmed_reads/multiqc_report
 
 
-# Unzip trimmed reads
+# Step 3: Align reads to reference genome
+
+
+# Prepare reads for alignment to reference genome
+# Unzip trimmed reads (optional)
 gzip -d trimmed_reads/paired/*.fastq.gz
 gzip -d trimmed_reads/unpaired/*.fastq.gz
 
 
-## MAP TO REFERENCE GENOME
-## Alternaria Genome
+#mkdir -p ref_genome_sb/genome_index
 
-# HISAT2: Genome index
-hisat2-build -p 2 \
-    ref_genome_sb/GCF_000004515.6_Glycine_max_v4.0_genomic.fna \
-    ref_genome_sb/genome_index
+# Index reference genome
+#hisat2-build -p 16 \
+#    ref_genome_sb/Gmax_880_v6.0.fa \
+#    ref_genome_sb/genome_index
 
 #echo "HISAT2 finished indexing!"
 
 
-# HISAT2 Alignment: map RNA-Seq reads to reference genome
+# Create directories and sub-directories to contain mapped reads
+mkdir -p mapped_reads/paired
+mkdir -p mapped_reads/unpaired
 
 mapped_paired="mapped_reads/paired/"
 mapped_unpaired="mapped_reads/unpaired/"
 genome_index="ref_genome_sb/genome_index"
 
+# Map reads to reference genome
 
-# for trimmed paired reads
+# Part A: map paired-end reads
 echo "HISAT2 Alignment: Mapping paired-end reads to the reference genome..."
-
 for trimmed_paired_read in ${paired_trimmed_reads}*.fastq; do
 
     # Define base name for R1 and R2 trimmed paired reads
@@ -106,10 +137,8 @@ echo "Samtools: finished sorting paired-end reads!"
 
 
 
-# for trimmed unpaired
+# Part B: map unpaired (single-end) reads
 echo "HISAT2 Alignment: Mapping unpaired reads (single-end reads) to the reference genome..."
-
-
 for trimmed_unpaired_read_R1 in "${unpaired_trimmed_reads}"*.trimmed.unpaired.R1.fastq; do
 
     # Get the corresponding R2 read
@@ -135,24 +164,27 @@ done
 echo "HISAT2 finished mapping (unpaired)!"
 echo "Samtools: finished sorting single-end reads!"
 
+# Visualize mapped reads (paired-end and single-end) using Multiqc
 destination_dir="mapped_reads/"
 cp "$mapped_paired"/*.hisat2_paired.log "$destination_dir"
 cp "$mapped_unpaired"/*.hisat2_unpaired.log "$destination_dir"
 
-conda run -n multiqc_rna multiqc -d -s mapped_reads/*.log -o mapped_reads/multiqc_report
+# Visualize the alignment reports for both paired-end and single-end reads
+multiqc -d -s mapped_reads/*.log -o mapped_reads/multiqc_report
 
 
+# Step 4: Generate read counts
 
-# FeatureCounts: Quantification for sorted bam files Paired bam files
-featureCounts -p -t exon -g gene_id -a ref_genome_sb/genomic.gtf\
+mkdir -p mapped_reads/counts
+
+# Paired sorted bam files
+featureCounts -p -t exon -g gene_id -a ref_genome_sb/gmax_gene_v6.1.gtf\
  -o mapped_reads/counts/counts_paired.txt -T 8 mapped_reads/paired/*sorted.bam
 
-# Unpaired bam files
-featureCounts -t exon -g gene_id -a ref_genome_sb/genomic.gtf\
+# Unpaired sorted bam files
+featureCounts -t exon -g gene_id -a ref_genome_sb/gmax_gene_v6.1.gtf\
  -o mapped_reads/counts/counts_unpaired.txt -T 8 mapped_reads/unpaired/*sorted.bam
 
-
-
-echo "rna sequencing finished successfully for alternaria"
-echo "rna sequencing started for soybean..."
+echo "FeatureCounts completed successfully!!"
+echo "reads ready for downstream analysis!!!"
 
