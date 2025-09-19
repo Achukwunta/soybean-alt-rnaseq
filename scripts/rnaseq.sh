@@ -88,8 +88,8 @@ gzip -d trimmed_reads/unpaired/*.fastq.gz
 
 # Index reference genome
 #hisat2-build -p 16 \
-#    ref_genome_sb/Gmax_880_v6.0.fa \
-#    ref_genome_sb/genome_index
+ref_genome_sb/Gmax_880_v6.0.fa \
+ref_genome_sb/genome_index
 
 #echo "HISAT2 finished indexing!"
 
