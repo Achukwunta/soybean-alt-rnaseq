@@ -74,6 +74,13 @@ snakemake fastqc_raw --cores 2 --use-conda
 ```
 Use `--use-conda` to ensure all dependencies are managed in isolated environments
 
+### Pipeline Steps
+1. **Quality Control & Trimming**: `FastQC` -> `MultiQC` -> `Trimmomatic` (adapter/quality trimming)
+2. **Read Alignment**: `HISAT2` map reads to the reference genome.
+3. **Indexing/Sorting**: `Salmon`
+4. **Quantification**: `featureCounts` to generate read counts
+5. **Differential Expression**: `PyDESeq2` Python implementation of DESeq2
+6. **Functional Enrichment**: `GProfiler`, `DAVID Bioinformatics`, `GOATOOLS`
 
 ## 🔧 Configuration
 
@@ -126,12 +133,12 @@ Advisor: Dr. Bryan Cassone
 
 ## 📜 Citation
 This work is part of an ongoing study. If you use this pipeline or results, please cite:  
-
 Chukwunta A., & Cassone B. (2025). *Dual RNA-seq analysis reveals metabolic reprogramming of Alternaria alternata and defense activation in Glycine max during infection.* (Target Journal: Molecular Plant-Microbe Interactions).
 
 ## 🤝 Contributing & Contact
 For questions, suggestions, or collaboration, please contact Augustine Chukwunta or open an issue on this repository.
 
-Thank you and Happy research!
+Happy research!
+
 
 
